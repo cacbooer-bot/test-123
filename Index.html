@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            border: none;
+            outline: none;
+        }
+
+        button {
+            width: 95%;
+            padding: 10px;
+            background: #22c55e;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        .error {
+            color: #f87171;
+            margin-top: 10px;
+        }
+
+        footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #cbd5f5;
+        }
+
+        #app {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="container" id="login">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <div class="error" id="error"></div>
+</div>
+
+<!-- APP -->
+<div class="container" id="app">
+    <h2>Add Number (1 - 10)</h2>
+    <input type="number" id="number" min="1" max="10" placeholder="Enter number">
+    <button onclick="addNumber()">Add</button>
+    <h3>Total: <span id="total">0</span></h3>
+
+    <footer>
+        This code made by Mahmood Saeed Ali Gaber
+    </footer>
+</div>
+
+<script>
+    let sum = 0;
+
+    function login() {
+        const user = document.getElementById("username");
+        const pass = document.getElementById("password");
+        const error = document.getElementById("error");
+
+        if (user.value === "admin" && pass.value === "1234") {
+            alert("Correct credentials");
+            document.getElementById("login").style.display = "none";
+            document.getElementById("app").style.display = "block";
+        } else {
+            error.textContent = "Wrong credentials";
+            user.value = "";
+            pass.value = "";
+        }
+    }
+
+    function addNumber() {
+        const num = Number(document.getElementById("number").value);
+
+        if (num >= 1 && num <= 10) {
+            sum += num;
+            document.getElementById("total").textContent = sum;
+            document.getElementById("number").value = "";
+        } else {
+            alert("Please enter a number from 1 to 10");
+        }
+    }
+</script>
+
+</body>
+</html>

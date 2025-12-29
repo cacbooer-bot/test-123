@@ -1,4 +1,4 @@
-name: Full Kali Linux (Key Fix)
+name: Full Kali Linux (Force Fix)
 on: workflow_dispatch
 
 jobs:
@@ -20,20 +20,21 @@ jobs:
           echo "Waiting for container to initialize..."
           sleep 10
 
-      - name: Fix Keys & Install Tools (Takes ~10 mins)
+      - name: Fix Keys & Install Tools (Force Overwrite)
         run: |
-          echo "Step 1: Forcing key update..."
-          # 1. Update list allowing insecure (expired) keys
+          echo "Step 1: Fixing GPG Keys..."
           docker exec -u 0 kali apt-get update --allow-insecure-repositories
-          
-          # 2. Install the new valid keyring
           docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali apt-get install -y --allow-unauthenticated kali-archive-keyring
           
-          echo "Step 2: Installing Full Toolset..."
-          # 3. Now update normally and install the big package
+          echo "Step 2: Updating Repositories..."
           docker exec -u 0 kali apt-get update
-          docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali apt-get install -y kali-linux-default
-          
+
+          echo "Step 3: Installing Full Toolset (With Force Overwrite)..."
+          # This line fixes your error: We force dpkg to overwrite conflicting files
+          docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali \
+            apt-get install -y -o Dpkg::Options::="--force-overwrite" \
+            kali-linux-default --fix-missing
+
           echo "Installation complete!"
 
       - name: Install Cloudflared

@@ -1,4 +1,4 @@
-name: Kali Linux Desktop (Cloudflare)
+name: Kali Linux (Fixed)
 on: workflow_dispatch
 
 jobs:
@@ -7,18 +7,20 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Start Kali Linux (Kasm)
+      - name: Start Kali Linux (Kasm Core)
         run: |
+          # Using the correct repo: kasmweb/core-kali-rolling
+          # Using specific tag: 1.15.0 (latest tag does not exist for this image)
           docker run -d \
             --name kali \
             --user root \
             -p 6901:6901 \
             -e VNC_PW=headless \
-            -e VNC_USER=admin \
+            -e VNC_USER=kasm_user \
             --shm-size=2g \
-            kasmweb/kali-rolling-desktop
+            kasmweb/core-kali-rolling:1.15.0
             
-          echo "Kali is starting... waiting 30 seconds for GUI to initialize..."
+          echo "Kali is starting... waiting 30 seconds..."
           sleep 30
           docker ps
 
@@ -29,5 +31,6 @@ jobs:
 
       - name: Expose to Internet
         run: |
-          # We use --no-tls-verify because Kasm uses self-signed HTTPS
+          # Kasm uses HTTPS by default, so we point to https://localhost:6901
+          # We must use --no-tls-verify because the certificate is self-signed
           cloudflared tunnel --url https://localhost:6901 --no-tls-verify

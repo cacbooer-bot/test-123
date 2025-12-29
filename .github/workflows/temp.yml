@@ -1,63 +1,33 @@
-name: VNC via Guacamole
-
-on:
-  workflow_dispatch:
+name: Remote Desktop via Cloudflare
+on: workflow_dispatch
 
 jobs:
   desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 360  # Maximum allowed by GitHub Free tier
 
     steps:
-      - name: Install Docker
+      - name: Start Desktop (noVNC)
         run: |
-          sudo apt update
-          sudo apt install -y docker.io docker-compose
-          sudo systemctl start docker
-          sudo systemctl enable docker
-
-      - name: Create docker-compose.yml
-        run: |
-          cat << 'EOF' > docker-compose.yml
-          version: "3.8"
-
-          services:
-            tigervnc:
-              image: dorowu/ubuntu-desktop-lxde-vnc
-              container_name: tigervnc
-              environment:
-                - VNC_PASSWORD=1234
-              ports:
-                - "5901:5901"
-
-            guacd:
-              image: guacamole/guacd
-              container_name: guacd
-
-            guacamole:
-              image: guacamole/guacamole
-              container_name: guacamole
-              depends_on:
-                - guacd
-                - tigervnc
-              environment:
-                GUACD_HOSTNAME: guacd
-                GUACD_PORT: 4822
-              ports:
-                - "8080:8080"
-          EOF
-
-      - name: Start VNC + Guacamole
-        run: |
-          docker-compose up -d
+          # We use --shm-size=2g to prevent browser crashes inside the desktop
+          docker run -d \
+            --name desktop \
+            -p 6080:80 \
+            -e VNC_PASSWORD=headless \
+            --shm-size=2g \
+            dorowu/ubuntu-desktop-lxde-vnc
+            
+          # Wait 10 seconds to ensure the container is fully up
+          sleep 10
           docker ps
 
-      - name: Install Cloudflare Tunnel
+      - name: Install Cloudflared
         run: |
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x cloudflared-linux-amd64
-          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
 
-      - name: Expose Guacamole to Internet
+      - name: Expose to Internet
         run: |
-          cloudflared tunnel --url http://localhost:8080
+          # This command blocks execution and keeps the job running
+          # Look at the GitHub Action logs to find the "trycloudflare.com" URL
+          cloudflared tunnel --url http://localhost:6080

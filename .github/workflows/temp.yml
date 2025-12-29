@@ -1,36 +1,63 @@
-version: "3.8"
+name: VNC via Guacamole
 
-networks:
-  rustdesk-net:
-    driver: bridge
+on:
+  workflow_dispatch:
 
-services:
-  hbbs:
-    image: rustdesk/rustdesk-server:1.1.10
-    container_name: rustdesk-hbbs
-    command: hbbs -r 139.144.28.62:21117
-    volumes:
-      - ./data/hbbs:/root
-    ports:
-      - "21115:21115"
-      - "21116:21116"
-      - "21116:21116/udp"
-      - "21118:21118"
-    depends_on:
-      - hbbr
-    networks:
-      - rustdesk-net
-    restart: unless-stopped
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
 
-  hbbr:
-    image: rustdesk/rustdesk-server:1.1.10
-    container_name: rustdesk-hbbr
-    command: hbbr
-    volumes:
-      - ./data/hbbr:/root
-    ports:
-      - "21117:21117"
-      - "21119:21119"
-    networks:
-      - rustdesk-net
-    restart: unless-stopped
+    steps:
+      - name: Install Docker
+        run: |
+          sudo apt update
+          sudo apt install -y docker.io docker-compose
+          sudo systemctl start docker
+          sudo systemctl enable docker
+
+      - name: Create docker-compose.yml
+        run: |
+          cat << 'EOF' > docker-compose.yml
+          version: "3.8"
+
+          services:
+            tigervnc:
+              image: dorowu/ubuntu-desktop-lxde-vnc
+              container_name: tigervnc
+              environment:
+                - VNC_PASSWORD=1234
+              ports:
+                - "5901:5901"
+
+            guacd:
+              image: guacamole/guacd
+              container_name: guacd
+
+            guacamole:
+              image: guacamole/guacamole
+              container_name: guacamole
+              depends_on:
+                - guacd
+                - tigervnc
+              environment:
+                GUACD_HOSTNAME: guacd
+                GUACD_PORT: 4822
+              ports:
+                - "8080:8080"
+          EOF
+
+      - name: Start VNC + Guacamole
+        run: |
+          docker-compose up -d
+          docker ps
+
+      - name: Install Cloudflare Tunnel
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+
+      - name: Expose Guacamole to Internet
+        run: |
+          cloudflared tunnel --url http://localhost:8080

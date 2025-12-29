@@ -1,0 +1,18 @@
+# File: .github/workflows/test.yml
+name: Test Workflow
+
+on:
+  workflow_dispatch:  # allows manual trigger via API or GitHub UI
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Say Hello
+        run: echo "Hello from GitHub Actions!"
+
+      - name: List Files
+        run: ls -la

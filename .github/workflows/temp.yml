@@ -19,10 +19,4 @@ jobs:
       - name: Start tmate session
         run: |
           # start tmate in the background
-          tmate -S /tmp/tmate.sock new-session -d
-
-          # wait for SSH connection string
-          echo "Waiting for SSH connection..."
-          sleep 5
-          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
-          tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
+          tmate 

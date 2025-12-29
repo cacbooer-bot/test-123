@@ -1,4 +1,4 @@
-name: Full Kali Linux (Standard Tools)
+name: Full Kali Linux (Key Fix)
 on: workflow_dispatch
 
 jobs:
@@ -9,7 +9,6 @@ jobs:
     steps:
       - name: Start Kali (Background)
         run: |
-          # Starting the base graphical container
           docker run -d \
             --name kali \
             -p 6901:6901 \
@@ -17,15 +16,22 @@ jobs:
             -e VNC_USER=kasm_user \
             --shm-size=2g \
             kasmweb/core-kali-rolling:1.15.0
-
-      - name: Install "Full" Toolset (Takes ~10 mins)
-        run: |
-          echo "Updating repositories..."
-          docker exec -u 0 kali apt-get update
           
-          echo "Installing Standard Kali Tools (Metasploit, Burp, Nmap, etc)..."
-          # kali-linux-default is the standard package list found in the ISO
-          # We use DEBIAN_FRONTEND=noninteractive to prevent it from asking questions
+          echo "Waiting for container to initialize..."
+          sleep 10
+
+      - name: Fix Keys & Install Tools (Takes ~10 mins)
+        run: |
+          echo "Step 1: Forcing key update..."
+          # 1. Update list allowing insecure (expired) keys
+          docker exec -u 0 kali apt-get update --allow-insecure-repositories
+          
+          # 2. Install the new valid keyring
+          docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali apt-get install -y --allow-unauthenticated kali-archive-keyring
+          
+          echo "Step 2: Installing Full Toolset..."
+          # 3. Now update normally and install the big package
+          docker exec -u 0 kali apt-get update
           docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali apt-get install -y kali-linux-default
           
           echo "Installation complete!"
@@ -37,5 +43,4 @@ jobs:
 
       - name: Expose to Internet
         run: |
-          # Kasm uses HTTPS by default
           cloudflared tunnel --url https://localhost:6901 --no-tls-verify

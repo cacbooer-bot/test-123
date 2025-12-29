@@ -1,28 +1,34 @@
-name: Kali Linux (Fixed)
+name: Full Kali Linux (Standard Tools)
 on: workflow_dispatch
 
 jobs:
-  kali-desktop:
+  kali-full:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
     steps:
-      - name: Start Kali Linux (Kasm Core)
+      - name: Start Kali (Background)
         run: |
-          # Using the correct repo: kasmweb/core-kali-rolling
-          # Using specific tag: 1.15.0 (latest tag does not exist for this image)
+          # Starting the base graphical container
           docker run -d \
             --name kali \
-            --user root \
             -p 6901:6901 \
             -e VNC_PW=headless \
             -e VNC_USER=kasm_user \
             --shm-size=2g \
             kasmweb/core-kali-rolling:1.15.0
-            
-          echo "Kali is starting... waiting 30 seconds..."
-          sleep 30
-          docker ps
+
+      - name: Install "Full" Toolset (Takes ~10 mins)
+        run: |
+          echo "Updating repositories..."
+          docker exec -u 0 kali apt-get update
+          
+          echo "Installing Standard Kali Tools (Metasploit, Burp, Nmap, etc)..."
+          # kali-linux-default is the standard package list found in the ISO
+          # We use DEBIAN_FRONTEND=noninteractive to prevent it from asking questions
+          docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali apt-get install -y kali-linux-default
+          
+          echo "Installation complete!"
 
       - name: Install Cloudflared
         run: |
@@ -31,6 +37,5 @@ jobs:
 
       - name: Expose to Internet
         run: |
-          # Kasm uses HTTPS by default, so we point to https://localhost:6901
-          # We must use --no-tls-verify because the certificate is self-signed
+          # Kasm uses HTTPS by default
           cloudflared tunnel --url https://localhost:6901 --no-tls-verify

@@ -1,36 +1,36 @@
-version: '3'
+version: "3.8"
 
 networks:
   rustdesk-net:
-    external: false
+    driver: bridge
 
 services:
   hbbs:
-    container_name: hbbs
-    ports:
-      - 21115:21115
-      - 21116:21116
-      - 21116:21116/udp
-      - 21118:21118
-    image: rustdesk/rustdesk-server:latest
-    command: hbbs -r rustdesk.example.com:21117
+    image: rustdesk/rustdesk-server:1.1.10
+    container_name: rustdesk-hbbs
+    command: hbbs -r 139.144.28.62:21117
     volumes:
-      - ./data:/root
-    networks:
-      - rustdesk-net
+      - ./data/hbbs:/root
+    ports:
+      - "21115:21115"
+      - "21116:21116"
+      - "21116:21116/udp"
+      - "21118:21118"
     depends_on:
       - hbbr
+    networks:
+      - rustdesk-net
     restart: unless-stopped
 
   hbbr:
-    container_name: hbbr
-    ports:
-      - 21117:21117
-      - 21119:21119
-    image: rustdesk/rustdesk-server:latest
+    image: rustdesk/rustdesk-server:1.1.10
+    container_name: rustdesk-hbbr
     command: hbbr
     volumes:
-      - ./data:/root
+      - ./data/hbbr:/root
+    ports:
+      - "21117:21117"
+      - "21119:21119"
     networks:
       - rustdesk-net
     restart: unless-stopped

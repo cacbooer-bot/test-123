@@ -2,8 +2,7 @@ name: Remote Desktop via Cloudflare
 on: workflow_dispatch
 
 jobs:
-  desktop:
-    runs-on: ubuntu-latest
+  desktop:                                                                      runs-on: ubuntu-latest
     timeout-minutes: 360  # Maximum allowed by GitHub Free tier
 
     steps:
@@ -12,10 +11,8 @@ jobs:
           # We use --shm-size=2g to prevent browser crashes inside the desktop
           docker run -d \
             --name desktop \
-            -p 6080:80 \
-            -e VNC_PASSWORD=headless \
-            --shm-size=2g \
-            dorowu/ubuntu-desktop-lxde-vnc
+            -p 6080:80 \                                                                -e VNC_PASSWORD=headless \
+            --shm-size=2g \                                                             dorowu/ubuntu-desktop-lxde-vnc
 
           # Wait 10 seconds to ensure the container is fully up
           sleep 10
@@ -28,6 +25,5 @@ jobs:
 
       - name: Expose to Internet
         run: |
-          # This command blocks execution and keeps the job running
-          # Look at the GitHub Action logs to find the "trycloudflare.com" URL
+          # This command blocks execution and keeps the job running                   # Look at the GitHub Action logs to find the "trycloudflare.com" URL
           cloudflared tunnel --url http://localhost:6080

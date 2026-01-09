@@ -1,74 +1,33 @@
-name: Apache Guacamole Desktop
+name: Remote Desktop via Cloudflare
 on: workflow_dispatch
 
 jobs:
-  guacamole-server:
+  desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 360  # Maximum allowed by GitHub Free tier
 
     steps:
-      - name: Prepare Configurations
+      - name: Start Desktop (noVNC)
         run: |
-          # إنشاء مجلد للإعدادات
-          mkdir -p guac-config
-          
-          # إنشاء ملف إعدادات المستخدم والاتصال (User Mapping)
-          # هذا الملف يربط واجهة Guacamole بسطح المكتب مباشرة
-          cat <<EOF > guac-config/user-mapping.xml
-          <user-mapping>
-              <authorize username="admin" password="password">
-                  
-                  <connection name="Ubuntu Desktop">
-                      <protocol>vnc</protocol>
-                      <param name="hostname">127.0.0.1</param>
-                      <param name="port">5900</param>
-                      <param name="password">headless</param>
-                  </connection>
-
-              </authorize>
-          </user-mapping>
-          EOF
-        shell: bash
-
-      - name: Start Target Desktop (VNC)
-        run: |
-          # تشغيل سطح المكتب (الهدف الذي سنتصل به)
+          # We use --shm-size=2g to prevent browser crashes inside the desktop
           docker run -d \
             --name desktop \
-            --network host \
+            -p 6080:80 \
             -e VNC_PASSWORD=headless \
             --shm-size=2g \
             dorowu/ubuntu-desktop-lxde-vnc
-
-      - name: Start Guacamole Daemon (guacd)
-        run: |
-          # المحرك الخاص بجواكامولي
-          docker run -d \
-            --name guacd \
-            --network host \
-            guacamole/guacd
-
-      - name: Start Guacamole Client (Web UI)
-        run: |
-          # واجهة الويب (Tomcat)
-          # نربطها بملف الإعدادات الذي أنشأناه في الخطوة الأولى
-          docker run -d \
-            --name guacamole \
-            --network host \
-            -v $PWD/guac-config:/etc/guacamole \
-            -e GUACD_HOSTNAME=127.0.0.1 \
-            -e GUACD_PORT=4822 \
-            guacamole/guacamole
-
-          # انتظار قليل للتأكد من عمل السيرفر
-          sleep 20
+            
+          # Wait 10 seconds to ensure the container is fully up
+          sleep 10
+          docker ps
 
       - name: Install Cloudflared
         run: |
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
 
-      - name: Expose Guacamole to Internet
+      - name: Expose to Internet
         run: |
-          # واجهة Guacamole تعمل افتراضياً على المنفذ 8080
-          cloudflared tunnel --url http://localhost:8080
+          # This command blocks execution and keeps the job running
+          # Look at the GitHub Action logs to find the "trycloudflare.com" URL
+          cloudflared tunnel --url http://localhost:6080

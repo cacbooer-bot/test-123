@@ -1,13 +1,36 @@
-name: Remote Access
+name: Kali Linux WebTop
 on: workflow_dispatch
+
 jobs:
-  desktop:
+  kali-desktop:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+
     steps:
-      - name: Start
+      - name: Start Kali WebTop
         run: |
-          echo "Starting the process..."
-          echo "Installation complete."
-          echo "Connecting to tunnel..."
-          # Simulating logs
-          for i in {1..5}; do echo "Log entry $i"; sleep 1; done
+          # نستخدم صورة WebTop لأنها تدعم نقل الملفات وتعمل بسلاسة في المتصفح
+          docker run -d \
+            --name kali-top \
+            --privileged \
+            -p 3000:3000 \
+            -e PUID=1000 \
+            -e PGID=1000 \
+            -e TZ=Asia/Aden \
+            -e TITLE="Kali Linux" \
+            --shm-size=2g \
+            lscr.io/linuxserver/webtop:kali-xfce
+
+          # انتظار تشغيل النظام
+          sleep 20
+          docker ps
+
+      - name: Install Cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: Expose to Internet
+        run: |
+          # المنفذ هنا 3000
+          cloudflared tunnel --url http://localhost:3000

@@ -1,0 +1,31 @@
+
+name: Windows RDP via Bore
+on: workflow_dispatch
+
+jobs:
+  rdp-bore:
+    runs-on: windows-latest
+    timeout-minutes: 360
+    
+    steps:
+      - name: Set User Password
+        run: |
+          net user runneradmin MySecretPass123 /add
+          net localgroup administrators runneradmin /add
+        shell: cmd
+
+      - name: Download & Run Bore
+        run: |
+          # Download bore for Windows
+          Invoke-WebRequest https://github.com/ekzhang/bore/releases/download/v0.5.2/bore-v0.5.2-x86_64-pc-windows-msvc.zip -OutFile bore.zip
+          Expand-Archive bore.zip -DestinationPath .
+          
+          # Run Bore and pipe output to a file so we can read it, but also print to console
+          # We expose port 3389 (RDP)
+          Write-Host "Starting Tunnel..."
+          .\bore.exe local 3389 --to bore.pub > tunnel_log.txt 2>&1
+        shell: powershell
+        
+      - name: Keep Alive
+        run: |
+          while ($true) { Start-Sleep -Seconds 60 }

@@ -1,36 +1,74 @@
-name: Kali Linux WebTop
+name: Apache Guacamole Desktop
 on: workflow_dispatch
 
 jobs:
-  kali-desktop:
+  guacamole-server:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
     steps:
-      - name: Start Kali WebTop
+      - name: Prepare Configurations
         run: |
-          # نستخدم صورة WebTop لأنها تدعم نقل الملفات وتعمل بسلاسة في المتصفح
-          docker run -d \
-            --name kali-top \
-            --privileged \
-            -p 3000:3000 \
-            -e PUID=1000 \
-            -e PGID=1000 \
-            -e TZ=Asia/Aden \
-            -e TITLE="Kali Linux" \
-            --shm-size=2g \
-            lscr.io/linuxserver/webtop:kali-xfce
+          # إنشاء مجلد للإعدادات
+          mkdir -p guac-config
+          
+          # إنشاء ملف إعدادات المستخدم والاتصال (User Mapping)
+          # هذا الملف يربط واجهة Guacamole بسطح المكتب مباشرة
+          cat <<EOF > guac-config/user-mapping.xml
+          <user-mapping>
+              <authorize username="admin" password="password">
+                  
+                  <connection name="Ubuntu Desktop">
+                      <protocol>vnc</protocol>
+                      <param name="hostname">127.0.0.1</param>
+                      <param name="port">5900</param>
+                      <param name="password">headless</param>
+                  </connection>
 
-          # انتظار تشغيل النظام
+              </authorize>
+          </user-mapping>
+          EOF
+        shell: bash
+
+      - name: Start Target Desktop (VNC)
+        run: |
+          # تشغيل سطح المكتب (الهدف الذي سنتصل به)
+          docker run -d \
+            --name desktop \
+            --network host \
+            -e VNC_PASSWORD=headless \
+            --shm-size=2g \
+            dorowu/ubuntu-desktop-lxde-vnc
+
+      - name: Start Guacamole Daemon (guacd)
+        run: |
+          # المحرك الخاص بجواكامولي
+          docker run -d \
+            --name guacd \
+            --network host \
+            guacamole/guacd
+
+      - name: Start Guacamole Client (Web UI)
+        run: |
+          # واجهة الويب (Tomcat)
+          # نربطها بملف الإعدادات الذي أنشأناه في الخطوة الأولى
+          docker run -d \
+            --name guacamole \
+            --network host \
+            -v $PWD/guac-config:/etc/guacamole \
+            -e GUACD_HOSTNAME=127.0.0.1 \
+            -e GUACD_PORT=4822 \
+            guacamole/guacamole
+
+          # انتظار قليل للتأكد من عمل السيرفر
           sleep 20
-          docker ps
 
       - name: Install Cloudflared
         run: |
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
 
-      - name: Expose to Internet
+      - name: Expose Guacamole to Internet
         run: |
-          # المنفذ هنا 3000
-          cloudflared tunnel --url http://localhost:3000
+          # واجهة Guacamole تعمل افتراضياً على المنفذ 8080
+          cloudflared tunnel --url http://localhost:8080

@@ -1,47 +1,92 @@
-name: Full Kali Linux (Force Fix)
-on: workflow_dispatch
+name: Deploy Guacamole (Quick Tunnel)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
 
 jobs:
-  kali-full:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
-
     steps:
-      - name: Start Kali (Background)
-        run: |
-          docker run -d \
-            --name kali \
-            -p 6901:6901 \
-            -e VNC_PW=headless \
-            -e VNC_USER=kasm_user \
-            --shm-size=2g \
-            kasmweb/core-kali-rolling:1.15.0
-          
-          echo "Waiting for container to initialize..."
-          sleep 10
+      - name: Deploy & Fetch URL
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # 1. Setup Directories
+            BASE_DIR="/opt/guacamole-quick"
+            mkdir -p $BASE_DIR/init
+            mkdir -p $BASE_DIR/data
+            cd $BASE_DIR
 
-      - name: Fix Keys & Install Tools (Force Overwrite)
-        run: |
-          echo "Step 1: Fixing GPG Keys..."
-          docker exec -u 0 kali apt-get update --allow-insecure-repositories
-          docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali apt-get install -y --allow-unauthenticated kali-archive-keyring
-          
-          echo "Step 2: Updating Repositories..."
-          docker exec -u 0 kali apt-get update
+            # 2. Generate Database Schema (Only if missing)
+            if [ ! -f ./init/initdb.sql ]; then
+              echo "Generating Guacamole SQL schema..."
+              docker run --rm guacamole/guacamole /opt/guacamole/bin/initdb.sh --postgresql > ./init/initdb.sql
+              chmod 644 ./init/initdb.sql
+            fi
 
-          echo "Step 3: Installing Full Toolset (With Force Overwrite)..."
-          # This line fixes your error: We force dpkg to overwrite conflicting files
-          docker exec -u 0 -e DEBIAN_FRONTEND=noninteractive kali \
-            apt-get install -y -o Dpkg::Options::="--force-overwrite" \
-            kali-linux-default --fix-missing
+            # 3. Create Docker Compose with Quick Tunnel
+            # Note: We point the tunnel to http://guacamole:8080 (internal docker name)
+            cat <<EOF > docker-compose.yml
+            version: '3'
+            services:
+              guacd:
+                image: guacamole/guacd
+                restart: always
+              
+              postgres:
+                image: postgres:15
+                restart: always
+                environment:
+                  POSTGRES_USER: guacamole_user
+                  POSTGRES_PASSWORD: '${{ secrets.POSTGRES_PASSWORD }}'
+                  POSTGRES_DB: guacamole_db
+                  PGDATA: /var/lib/postgresql/data/guacamole
+                volumes:
+                  - ./init:/docker-entrypoint-initdb.d:ro
+                  - ./data:/var/lib/postgresql/data
+              
+              guacamole:
+                image: guacamole/guacamole
+                restart: always
+                depends_on:
+                  - guacd
+                  - postgres
+                environment:
+                  GUACD_HOSTNAME: guacd
+                  POSTGRES_HOSTNAME: postgres
+                  POSTGRES_DATABASE: guacamole_db
+                  POSTGRES_USER: guacamole_user
+                  POSTGRES_PASSWORD: '${{ secrets.POSTGRES_PASSWORD }}'
+                  POSTGRES_AUTO_CREATE_ACCOUNTS: 'true'
+                ports:
+                  - "8080:8080"
+              
+              tunnel:
+                image: cloudflare/cloudflared
+                restart: always
+                # This command creates the temporary tunnel without a token
+                command: tunnel --url http://guacamole:8080
+                depends_on:
+                  - guacamole
+            EOF
 
-          echo "Installation complete!"
+            # 4. Deploy and Wait
+            echo "Starting containers..."
+            docker compose down --remove-orphans # Clean up old tunnel
+            docker compose pull
+            docker compose up -d
 
-      - name: Install Cloudflared
-        run: |
-          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared.deb
-
-      - name: Expose to Internet
-        run: |
-          cloudflared tunnel --url https://localhost:6901 --no-tls-verify
+            # 5. Extract the URL for the user
+            echo "Waiting for Cloudflare Tunnel to generate URL..."
+            sleep 10
+            echo "---------------------------------------------------"
+            echo "YOUR ACCESS URL IS BELOW:"
+            echo "---------------------------------------------------"
+            # We filter the logs to find the trycloudflare link
+            docker compose logs tunnel 2>&1 | grep -o 'https://.*\.trycloudflare\.com' | head -n 1
+            echo "---------------------------------------------------"
